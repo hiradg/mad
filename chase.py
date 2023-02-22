@@ -296,15 +296,14 @@ class chaseController(object):
             self.send_speed_command()    
             self.check_flight_mode()
             
-            this_time = time.time()
+        this_time = time.time()
+        
+        self.last_timestep = this_time - self.last_time
+        if self.last_timestep < self.desired_timestep:
+            time.sleep(self.desired_timestep - self.last_timestep)
+        
+        self.last_time = this_time
             
-            self.last_timestep = this_time - self.last_time
-            if self.last_timestep < self.desired_timestep:
-                time.sleep(self.desired_timestep - self.last_timestep)
-            
-            self.last_time = this_time
-            
-        time.sleep(1/self.control_loop_freq)
 
 def main():
     controller = chaseController(target_sysID,chaser_sysID,k_p,k_i,connection_str,control_loop_freq,des_mode,chaser_max_speed)
