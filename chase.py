@@ -9,7 +9,7 @@ chaser_sysID = 2
 
 k_p = 0.35
 k_i = 0.0000
-k_d = -0.1000
+k_d = -0.2000
 
 des_mode = 4
 chaser_max_speed =20
@@ -194,7 +194,7 @@ class chaseController(object):
 
         angle = Point.angle_between(target_vel, de)
 
-        de = abs(de)[0] * 1 if angle[0] < np.pi/2 else -1
+        de = -abs(de)[0] if angle[0] < np.pi/2 else abs(de)[0]
 
         self.distError_d = (de - self.distError ) * control_loop_freq
         self.distError = de
