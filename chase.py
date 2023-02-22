@@ -171,17 +171,6 @@ class chaseController(object):
         self.distError_I += self.distError
 
     
-    def get_error_sign(self,delta_N,delta_E):
-
-        y_target_frame =  math.sin(math.radians(self.heading_target))*(delta_N)+math.cos(math.radians(self.heading_target))*(delta_E)
-
-        if y_target_frame>0:
-            self.distErrorSign = 1
-        elif y_target_frame<=0:
-            self.distErrorSign = -1
-        # print('error sign')
-        # print(self.distErrorSign)
-
     def get_heading_to_chase_point(self):
         delta_E = self.local_pose_chaser[1]-self.chase_target_point[1]
         delta_N = self.local_pose_chaser[0]-self.chase_target_point[0]
@@ -190,35 +179,13 @@ class chaseController(object):
         # print('chase point heading')
         # print(self.chase_point_heading)
 
-    def get_heading_to_hold_point(self):
-        delta_E = self.local_pose_chaser[1]-self.hold_point[1]
-        delta_N = self.local_pose_chaser[0]-self.hold_point[0]
-
-        self.chase_point_heading = math.atan2(delta_N,delta_E)
-        # print('chase point heading')
-        # print(self.chase_point_heading)
-    
-    # def get_dist_error(self, other) -> Point:
-    #     if len(other) == len(self):
-    #         return Point(
-    #             -(other.lat - self.lat) * LOCFAC,
-    #             -(other.long - self.long) * LOCFAC * self._longfac,
-    #             np.zeros(len(self))
-    #         )
 
     def vel_controller_horizontal(self):
-        # self.chaser_speed_goal = self.target_speed*-1 + self.k_p*self.distError+self.k_i*self.distError_Integral_term
+        
         self.chaser_speed_goal = self.target_speed - self.k_p*self.distError - self.k_d*self.distError_d - self.k_i * self.distError_I
         
         print(f"Dist error: {self.distError}")
-        # print(f"target speed: {self.target_speed}")
-        # self.chaser_speed_goal = 7.2
-
-        # vel_flag = abs(self.chaser_speed_goal)/self.chaser_speed_goal
-
-        # if abs(self.chaser_speed_goal)> self.chaser_max_speed:
-        #     self.chaser_speed_goal = self.chaser_max_speed*vel_flag
-
+        
         self.chaser_speed_goal_x = self.chaser_speed_goal*math.sin((self.chase_point_heading))
         self.chaser_speed_goal_y = self.chaser_speed_goal*math.cos((self.chase_point_heading))
 
@@ -288,8 +255,8 @@ class chaseController(object):
             self.get_heading_to_chase_point()
             self.get_dist_error()
             self.vel_controller_horizontal()
-            self.vel_controller_vertical()
             self.update_chase_target_alt_offset()
+            self.vel_controller_vertical()
             self.send_vel_command()
             self.send_speed_command()    
             self.check_flight_mode()
