@@ -166,9 +166,9 @@ class chaseController(object):
         
         de = abs(gps2 - gps1)[0]
                 
-        self.distError_d = (de - self.distError ) * control_loop_freq
+        self.distError_d = (de - self.distError ) / self.last_timestep
         self.distError = de
-        self.distError_I += self.distError
+        self.distError_I += self.distError * self.last_timestep
 
     
     def get_heading_to_chase_point(self):
