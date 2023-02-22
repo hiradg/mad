@@ -29,6 +29,9 @@ class chaseController(object):
         self.k_i = k_i 
         self.k_d = k_d
         self.control_loop_freq = control_loop_freq
+        self.desired_timestep = 1/control_loop_freq
+        self.last_timestep = self.desired_timestep
+        
         self.des_mode = des_mode
         self.chaser_max_speed = chaser_max_speed
 
@@ -47,7 +50,7 @@ class chaseController(object):
         self.global_pose_chaser = [0,0,0]
 
         self.chase_target_point_offset = -25 # this the distance of the point in front of the USV (in meters) to chase 
-        self.chase_target_alt_offset = 5
+        self.chase_target_alt_offset = 10
         self.chase_target_point = [0,0,0]
 
         self.chasePoint_x           = 0
@@ -82,6 +85,11 @@ class chaseController(object):
 
         self.target_speed             = 0
         self._tb = 0
+        
+        self.z_error = 10
+        
+        self.last_time = time.time()
+        
     def align_home_positions(self):
         home_flag =0
         while home_flag ==0:
@@ -137,27 +145,7 @@ class chaseController(object):
         0, 0, 0, 0, target_home_pose.latitude/10000000.0, target_home_pose.longitude/10000000.0, target_home_pose.altitude/1000.0
         )
     
-    def get_chaser_local_pose(self):
-        self.request_msg(self.chaser_sysid, 32)
-        local_pose = self.master.recv_match(type = 'LOCAL_POSITION_NED',blocking=True)
-        if local_pose.get_srcSystem() == self.chaser_sysid:
-            self.local_pose_chaser=[local_pose.x,local_pose.y,local_pose.z]
-            self.local_vel_chaser=[local_pose.vx,local_pose.vy,local_pose.vz]
-            self.chaser_speed = math.sqrt(local_pose.vx**2+local_pose.vy**2)
-            # print('chaser local pose')
-            # print(local_pose)
 
-    def get_target_local_pose(self):
-        self.request_msg(self.target_sysid,32)
-        local_pose = self.master.recv_match(type = 'LOCAL_POSITION_NED',blocking=True)
-        if local_pose.get_srcSystem() == self.target_sysid:
-            # print(local_pose)
-            self.local_pose_target=[local_pose.x,local_pose.y,local_pose.z]
-            self.local_vel_target=[local_pose.vx,local_pose.vy,local_pose.vz]
-            self.target_speed = math.sqrt(local_pose.vx**2+local_pose.vy**2)
-            # print('target local pose')
-            # print(local_pose)
-    
 
     def get_veh_gps(self, sysid):
         while True:
@@ -166,29 +154,23 @@ class chaseController(object):
             if target_veh.get_srcSystem() == sysid:
                 break
     
-        return GPS(target_veh.lat*1e-7,target_veh.lon*1e-7)
+        return GPS(target_veh.lat*1e-7,target_veh.lon*1e-7), target_veh.alt
     
 
     def get_dist_error(self): #gets dist error and integral term.
         
         vcheck = self.master.recv_match(type = 'GLOBAL_POSITION_INT',blocking = True)
 
-        gps1 = self.get_veh_gps(self.target_sysid)
-        gps2 = self.get_veh_gps(self.chaser_sysid)
-
+        gps1, alt1 = self.get_veh_gps(self.target_sysid)
+        gps2, alt2 = self.get_veh_gps(self.chaser_sysid)
+        
+        self.z_error = alt2 - alt1
+        
         de = abs(gps2 - gps1)[0]
+                
         self.distError_d = (de - self.distError ) * control_loop_freq
         self.distError = de
         self.distError_I += self.distError
-     #   self.delta_E = self.hold_point[1]-self.local_pose_chaser[1]
-      #  self.delta_N = self.hold_point[0]-self.local_pose_chaser[0]
-
-        #self.get_error_sign(self.delta_N,self.delta_N)
-
-    #    self.distError = math.sin(math.radians(self.heading_target))*self.delta_N+math.cos(math.radians(self.heading_target))*self.delta_E#math.sqrt(self.delta_N**2+self.delta_E**2)
-
-     #   self.distError_Integral_term = self.distError_Integral_term+self.distError*1/self.control_loop_freq#*self.distErrorSign
-        
 
     
     def get_error_sign(self,delta_N,delta_E):
@@ -291,14 +273,17 @@ class chaseController(object):
                 self.mode_flag = 0
         # print('check flight mode')
 
-        
 
+    def update_chase_target_alt_offset(self):
+        self.chase_target_alt_offset = 10 if self.distError > 10 else self.distError
+        
     def control_loop(self):
         
         #check mode
         self.check_flight_mode()
 
         while self.mode_flag == 1:
+            
             self.set_chase_target_pose() #set target pose
             self.set_hold_point()
             self.get_chaser_local_pose() 
@@ -306,10 +291,18 @@ class chaseController(object):
             self.get_dist_error()
             self.vel_controller_horizontal()
             self.vel_controller_vertical()
+            self.update_chase_target_alt_offset()
             self.send_vel_command()
             self.send_speed_command()    
             self.check_flight_mode()
-            time.sleep(1/self.control_loop_freq)
+            
+            this_time = time.time()
+            
+            self.last_timestep = this_time - self.last_time
+            if self.last_timestep < self.desired_timestep:
+                time.sleep(self.desired_timestep - self.last_timestep)
+            
+            self.last_time = this_time
             
         time.sleep(1/self.control_loop_freq)
 
