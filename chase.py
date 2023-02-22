@@ -2,13 +2,14 @@ import time
 import math
 from pymavlink import mavutil
 from geometry import GPS, Point
+import numpy as np
 
 target_sysID = 1
 chaser_sysID = 2
 
-k_p = 0.001
+k_p = 0.35
 k_i = 0.0000
-k_d = 0.0000
+k_d = -0.1000
 
 des_mode = 4
 chaser_max_speed =20
@@ -46,7 +47,7 @@ class chaseController(object):
         self.global_pose_target = [0,0,0]
         self.global_pose_chaser = [0,0,0]
 
-        self.chase_target_point_offset = -25 # this the distance of the point in front of the USV (in meters) to chase 
+        self.chase_target_point_offset = -200 # this the distance of the point in front of the USV (in meters) to chase 
         self.chase_target_alt_offset = 5
         self.chase_target_point = [0,0,0]
 
@@ -157,6 +158,17 @@ class chaseController(object):
             self.target_speed = math.sqrt(local_pose.vx**2+local_pose.vy**2)
             # print('target local pose')
             # print(local_pose)
+
+    # def get_chase_local_pose(self):
+    #     self.request_msg(self.chaser_sysid,32)
+    #     local_pose = self.master.recv_match(type = 'LOCAL_POSITION_NED',blocking=True)
+    #     if local_pose.get_srcSystem() == self.chaser_sysid:
+    #         # print(local_pose)
+    #         local_pose_chase=[local_pose.x,local_pose.y,local_pose.z]
+    #         local_vel_chase=[local_pose.vx,local_pose.vy,local_pose.vz]
+    #         self.chase_measured_speed = math.sqrt(local_pose.vx**2+local_pose.vy**2)
+    #         # print('target local pose')
+    #         # print(local_pose)
     
 
     def get_veh_gps(self, sysid):
@@ -176,7 +188,14 @@ class chaseController(object):
         gps1 = self.get_veh_gps(self.target_sysid)
         gps2 = self.get_veh_gps(self.chaser_sysid)
 
-        de = abs(gps2 - gps1)[0]
+        de = gps2 - gps1
+
+        target_vel = Point(*self.local_vel_target)
+
+        angle = Point.angle_between(target_vel, de)
+
+        de = abs(de)[0] * 1 if angle[0] < np.pi/2 else -1
+
         self.distError_d = (de - self.distError ) * control_loop_freq
         self.distError = de
         self.distError_I += self.distError
@@ -228,9 +247,14 @@ class chaseController(object):
 
     def vel_controller_horizontal(self):
         # self.chaser_speed_goal = self.target_speed*-1 + self.k_p*self.distError+self.k_i*self.distError_Integral_term
-        self.chaser_speed_goal = self.target_speed - self.k_p*self.distError - self.k_d*self.distError_d - self.k_i * self.distError_I
-        
+        self.chaser_speed_goal = self.target_speed + self.k_p*self.distError - self.k_d*self.distError_d - self.k_i * self.distError_I
+
         print(f"Dist error: {self.distError}")
+        print(f"target speed: {self.target_speed}")
+        
+        print(f"Chase measured speed: {self.chaser_speed}")
+        print(f"Chase demand speed: {self.chaser_speed_goal}")
+
         # print(f"target speed: {self.target_speed}")
         # self.chaser_speed_goal = 7.2
 
