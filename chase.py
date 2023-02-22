@@ -159,8 +159,6 @@ class chaseController(object):
 
     def get_dist_error(self): #gets dist error and integral term.
         
-        vcheck = self.master.recv_match(type = 'GLOBAL_POSITION_INT',blocking = True)
-
         gps1, alt1 = self.get_veh_gps(self.target_sysid)
         gps2, alt2 = self.get_veh_gps(self.chaser_sysid)
         
